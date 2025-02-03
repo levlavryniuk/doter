@@ -3,16 +3,18 @@ use std::{
     io::{ErrorKind, Read, Write},
 };
 
-use crate::consts::DOTER_FILE_PATH;
-
 pub struct MarkerManager {
-    markers: Vec<String>,
+    pub markers: Vec<String>,
+    file_path: String,
 }
 
 impl MarkerManager {
-    pub fn from_config() -> MarkerManager {
-        let entries = read_or_create_index();
-        MarkerManager { markers: entries }
+    pub fn from_config(doter_file_path: &str) -> MarkerManager {
+        let entries = read_or_create_index(doter_file_path);
+        MarkerManager {
+            markers: entries,
+            file_path: doter_file_path.to_string(),
+        }
     }
 
     pub fn add_marker(&mut self, marker: String) {
@@ -26,9 +28,10 @@ impl MarkerManager {
     }
 
     fn update_index(&self) {
-        let create = File::create(DOTER_FILE_PATH);
+        let create = File::create(&self.file_path);
         let mut file = create.unwrap();
         for marker in &self.markers {
+            let marker = format!("{}\n", marker);
             match file.write_all(marker.as_bytes()) {
                 Ok(_) => {}
                 Err(e) => {
@@ -38,8 +41,8 @@ impl MarkerManager {
         }
     }
 }
-fn read_or_create_index() -> Vec<String> {
-    let file = File::open(DOTER_FILE_PATH);
+fn read_or_create_index(path: &str) -> Vec<String> {
+    let file = File::open(path);
     let mut buf = String::new();
 
     match file {
@@ -49,7 +52,7 @@ fn read_or_create_index() -> Vec<String> {
         }
         Err(e) => {
             if e.kind() == ErrorKind::NotFound {
-                match File::create(DOTER_FILE_PATH) {
+                match File::create(path) {
                     Ok(_) => {
                         println!("Created .config/doter/index.toml")
                     }
