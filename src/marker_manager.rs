@@ -1,73 +1,106 @@
-use std::{
-    fs::File,
-    io::{ErrorKind, Read, Write},
-};
+use std::fs;
 
-pub struct MarkerManager {
-    pub markers: Vec<String>,
-    file_path: String,
+use rusqlite::Connection;
+
+use crate::config::Config;
+
+#[derive(Debug, PartialEq)]
+pub struct Marker {
+    pub source_location: String,
+    pub copy_location: String,
+    pub alias: String,
 }
 
-impl MarkerManager {
-    pub fn from_config(doter_file_path: &str) -> MarkerManager {
-        let entries = read_or_create_index(doter_file_path);
-        MarkerManager {
-            markers: entries,
-            file_path: doter_file_path.to_string(),
-        }
-    }
-
-    pub fn add_marker(&mut self, marker: String) {
-        self.markers.push(marker);
-        self.update_index();
-    }
-
-    pub fn remove_marker(&mut self, marker: String) {
-        self.markers.retain(|e| e != &marker);
-        self.update_index();
-    }
-
-    fn update_index(&self) {
-        let create = File::create(&self.file_path);
-        let mut file = create.unwrap();
-        for marker in &self.markers {
-            let marker = format!("{}\n", marker);
-            match file.write_all(marker.as_bytes()) {
-                Ok(_) => {}
-                Err(e) => {
-                    println!("Error writing to file: {}", e);
-                }
-            };
-        }
-    }
+pub struct MarkerManager<'a> {
+    conn: &'a Connection,
+    cfg: &'a Config,
 }
-fn read_or_create_index(path: &str) -> Vec<String> {
-    let file = File::open(path);
-    let mut buf = String::new();
 
-    match file {
-        Ok(mut file) => {
-            file.read_to_string(&mut buf)
-                .expect("Unable to read contents of ");
-        }
-        Err(e) => {
-            if e.kind() == ErrorKind::NotFound {
-                match File::create(path) {
-                    Ok(_) => {
-                        println!("Created .config/doter/index.toml")
-                    }
-                    Err(_) => {
-                        println!("Failed to create .config/doter/index.toml")
-                    }
-                }
+// nvim|/home/username/.config/nvim
+
+impl<'a> MarkerManager<'a> {
+    pub fn new(conn: &'a Connection, cfg: &'a Config) -> MarkerManager<'a> {
+        MarkerManager { conn, cfg }
+    }
+
+    pub fn add_marker(&self, source_marker: String) {
+        let mrk = self.create_marker(source_marker);
+
+        let query = "insert into markers (alias, source_location, copy_location) values (?, ?, ?)";
+
+        let mut stmt = self
+            .conn
+            .prepare(query)
+            .expect("BAD QUERY: total skill issue from devs");
+
+        match stmt.execute([&mrk.alias, &mrk.source_location, &mrk.copy_location]) {
+            Ok(_) => {
+                println!("Added marker: {}", mrk.alias);
+            }
+            Err(e) => {
+                println!("Error adding marker: {}", e);
             }
         }
     }
 
-    buf.split_whitespace()
-        .map(|e| {
-            println!("{e}");
-            e.to_string()
-        })
-        .collect()
+    fn create_marker(&self, source_marker: String) -> Marker {
+        let path = fs::canonicalize(&source_marker).expect("Invalid path");
+
+        let name = path
+            .file_name()
+            .expect("Invalid path")
+            .to_string_lossy()
+            .into_owned();
+
+        let copy_location = format!("{}/{}", self.cfg.doter_saves_dir_path.clone(), &name);
+
+        Marker {
+            source_location: source_marker.to_string(),
+            copy_location,
+            alias: name.to_string(),
+        }
+    }
+
+    pub fn get_markers(&self) -> Vec<Marker> {
+        let mut stmt = self
+            .conn
+            .prepare("select * from markers")
+            .expect("BAD QUERY: total skill issue from devs");
+
+        let mut markers = Vec::new();
+        for row in stmt
+            .query_map([], |row| {
+                Ok(Marker {
+                    alias: row.get(0)?,
+                    source_location: row.get(1)?,
+                    copy_location: row.get(2)?,
+                })
+            })
+            .expect("BAD QUERY: total skill issue from devs")
+        {
+            if let Ok(mrk) = row {
+                markers.push(mrk);
+            }
+        }
+        markers
+    }
+
+    pub fn remove_all_markers(&self) {
+        let mut stmt = self
+            .conn
+            .prepare("delete from markers")
+            .expect("BAD QUERY: total skill issue from devs");
+
+        stmt.execute([])
+            .expect("BAD QUERY: total skill issue from devs");
+    }
+    pub fn remove_marker(&self, alias: &str) {
+        let mut stmt = self
+            .conn
+            .prepare("delete from markers where alias = ?")
+            .expect("BAD QUERY: total skill issue from devs");
+
+        stmt.execute([&alias])
+            .expect("BAD QUERY: total skill issue from devs");
+    }
 }

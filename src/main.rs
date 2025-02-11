@@ -3,44 +3,49 @@
 // 1. Auto detect .config/doter/index.toml or create it
 // 2. Add entries using clap
 
+use rusqlite::Connection;
+
 mod commands;
 mod config;
 mod git_manager;
 mod marker_manager;
-use std::fs::{create_dir_all, read_dir};
-use std::io::ErrorKind;
 
-use marker_manager::MarkerManager;
+const MAKERS_TBL: &str = "
+create table if not exists markers (
+    alias varchar(255) primary key,
+    source_location varchar(255),
+    copy_location varchar(255)
+);
+";
 
-fn detect_or_create_dir(dir: &str) {
-    match read_dir(dir) {
-        Ok(_) => {}
-        Err(e) => {
-            if e.kind() == ErrorKind::NotFound {
-                println!("Creating .config/doter");
+const VARS_TBL: &str = "
+create table if not exists variables (
+    name varchar(255) primary key,
+    value varchar(255)
+);
+";
 
-                match create_dir_all(dir) {
-                    Ok(_) => {
-                        println!("Created .config/doter");
-                    }
-                    Err(e) => {
-                        println!("Error creating .config/doter: {}", e);
-                    }
-                }
-            }
-        }
-    }
+fn create_tables(conn: &Connection) {
+    conn.execute(MAKERS_TBL, []).unwrap();
+    conn.execute(VARS_TBL, []).unwrap();
 }
 
 fn main() {
-    let cfg = config::Config::load();
-    detect_or_create_dir(&cfg.doter_dir_path);
+    let mut cfg = config::Config::new();
 
-    let mut mgr = MarkerManager::from_config(&cfg.doter_file_path);
+    let conn = Connection::open(&cfg.doter_file_path).unwrap();
+
+    create_tables(&conn);
+
+    cfg.load_vars(&conn);
+
+    let tmp = cfg.clone();
+
+    let mut mgr = marker_manager::MarkerManager::new(&conn, &tmp);
 
     let command_mgr = commands::CommandManager::new();
     let command = command_mgr.create_command();
 
     let matches = command.get_matches();
-    command_mgr.handle(&matches, &mut mgr);
+    command_mgr.handle(&matches, &mut mgr, &mut cfg);
 }

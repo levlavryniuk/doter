@@ -1,15 +1,24 @@
-use add_command::AddCommand;
 use clap::ArgMatches;
 use clap::Command as ClapCommand;
-use ls_command::LsCommand;
+use marker::MarkerCommand;
+use origin_command::OriginCommand;
+use sync_command::SyncCommand;
 
+use crate::config;
 use crate::marker_manager::MarkerManager;
 
-pub mod add_command;
-pub mod ls_command;
+pub mod marker;
+pub mod origin_command;
+pub mod sync_command;
+
+pub struct Context<'a> {
+    pub matches: &'a ArgMatches,
+    pub mgr: &'a mut MarkerManager<'a>,
+    pub cfg: &'a mut config::Config,
+}
 
 pub trait CommandHandler {
-    fn handle(&self, matches: Option<&ArgMatches>, mgr: &mut MarkerManager);
+    fn handle(&self, ctx: Context);
     fn eq(&self, other: &str) -> bool;
     fn to_clap(&self) -> ClapCommand;
     fn new() -> Box<Self>
@@ -24,19 +33,33 @@ pub struct CommandManager {
 impl CommandManager {
     pub fn new() -> Self {
         CommandManager {
-            commands: vec![AddCommand::new(), LsCommand::new()],
+            commands: vec![
+                MarkerCommand::new(),
+                OriginCommand::new(),
+                SyncCommand::new(),
+            ],
         }
     }
 
-    pub fn handle(&self, matches: &ArgMatches, mgr: &mut MarkerManager) {
-        for command in &self.commands {
-            let subcommand = matches.subcommand_name().expect("Command not found");
-            if command.eq(subcommand) {
-                command.handle(matches.subcommand_matches(subcommand), mgr);
+    pub fn handle<'a>(
+        &self,
+        matches: &'a ArgMatches,
+        mgr: &'a mut MarkerManager<'a>,
+        cfg: &'a mut config::Config,
+    ) {
+        if let Some(subcommand) = matches.subcommand_name() {
+            if let Some(found_command) = self.commands.iter().find(|cmd| cmd.eq(subcommand)) {
+                if let Some(subcommand_matches) = matches.subcommand_matches(subcommand) {
+                    let ctx = Context {
+                        mgr,
+                        cfg,
+                        matches: subcommand_matches,
+                    };
+                    found_command.handle(ctx);
+                }
             }
         }
     }
-
     pub fn create_command(&self) -> ClapCommand {
         let commands: Vec<ClapCommand> = self.commands.iter().map(|c| c.to_clap()).collect();
         ClapCommand::new("doter")
