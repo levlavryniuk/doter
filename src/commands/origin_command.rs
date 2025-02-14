@@ -1,3 +1,5 @@
+use std::process::Command;
+
 use super::{CommandHandler, Context};
 
 pub struct OriginCommand;
@@ -11,6 +13,21 @@ impl CommandHandler for OriginCommand {
                 return;
             }
         }
+
+        let init_result = Command::new("git")
+            .current_dir(&ctx.cfg.doter_local_dir_path)
+            .args(["init"])
+            .output();
+
+        if let Err(e) = init_result {
+            eprintln!("Failed to initialize git repository: {}", e);
+            return;
+        }
+
+        let _ = Command::new("git")
+            .current_dir(&ctx.cfg.doter_local_dir_path)
+            .args(["remote", "add", "origin", new_origin.unwrap()])
+            .output();
 
         if let Some(new_origin) = new_origin {
             ctx.cfg.set_origin(new_origin.to_string());

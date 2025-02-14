@@ -7,7 +7,7 @@ use rusqlite::Connection;
 
 mod commands;
 mod config;
-mod git_manager;
+mod git;
 mod marker_manager;
 
 const MAKERS_TBL: &str = "

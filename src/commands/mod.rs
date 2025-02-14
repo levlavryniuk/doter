@@ -2,13 +2,17 @@ use clap::ArgMatches;
 use clap::Command as ClapCommand;
 use marker::MarkerCommand;
 use origin_command::OriginCommand;
+use remove_origin_command::RemoveOriginCommand;
 use sync_command::SyncCommand;
 
 use crate::config;
 use crate::marker_manager::MarkerManager;
 
+pub mod init_command;
 pub mod marker;
 pub mod origin_command;
+pub mod pull_command;
+pub mod remove_origin_command;
 pub mod sync_command;
 
 pub struct Context<'a> {
@@ -36,6 +40,7 @@ impl CommandManager {
             commands: vec![
                 MarkerCommand::new(),
                 OriginCommand::new(),
+                RemoveOriginCommand::new(),
                 SyncCommand::new(),
             ],
         }

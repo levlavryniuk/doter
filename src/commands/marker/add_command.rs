@@ -78,13 +78,17 @@ impl CommandHandler for AddCommand {
             )
     }
 }
-
 pub fn copy_dir_recursive(source: &Path, destination: &Path) -> std::io::Result<()> {
     fs::create_dir_all(destination)?;
 
     for entry in fs::read_dir(source)? {
         let entry = entry?;
         let path = entry.path();
+
+        if path.is_dir() && path.file_name().map_or(false, |name| name == ".git") {
+            continue;
+        }
+
         let dest_path = destination.join(path.file_name().unwrap());
 
         if path.is_dir() {

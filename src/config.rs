@@ -6,12 +6,15 @@ use std::{
 
 use rusqlite::Connection;
 
+pub const DOTER_BOILERPLATE_REPO_URL: &str = "git@github.com:levlavryniuk/doter-boilerplate.git";
 #[derive(Clone, Debug)]
 pub struct Config {
     pub doter_dir_path: String,
     pub doter_file_path: String,
+    pub has_initialised: bool,
     pub github_repo_url: Option<String>,
-    pub doter_saves_dir_path: String,
+    pub doter_local_dir_path: String,
+    pub doter_remote_dir_path: String,
 }
 
 impl Config {
@@ -19,17 +22,32 @@ impl Config {
         let doter_dir_path = env::var("HOME").expect("HOME not found").to_string() + "/.doter";
         let doter_file_path = format!("{}/{}", doter_dir_path, "index.db");
 
-        let doter_saves_path = format!("{}/{}", doter_dir_path, "saves");
+        let doter_local_path = format!("{}/{}", doter_dir_path, "local");
+        let doter_remote_path = format!("{}/{}", doter_dir_path, "remote");
         let cfg = Self {
             doter_dir_path,
             doter_file_path,
-            doter_saves_dir_path: doter_saves_path,
+            has_initialised: false,
+            doter_local_dir_path: doter_local_path,
+            doter_remote_dir_path: doter_remote_path,
             github_repo_url: None,
         };
         cfg.detect_or_create_dir();
         let _ = File::create_new(&cfg.doter_file_path);
 
         cfg
+    }
+
+    pub fn set_initialized(&mut self) {
+        self.has_initialised = true;
+        let conn = Connection::open(&self.doter_file_path).unwrap();
+        conn.execute("delete from variables where name = 'has_initialised'", [])
+            .expect("BAD QUERY: total skill issue from devs");
+        conn.execute(
+            "insert into variables (name, value) values ('has_initialised', 'true')",
+            [],
+        )
+        .expect("BAD QUERY: total skill issue from devs");
     }
 
     pub fn set_origin(&mut self, url: String) {
@@ -43,6 +61,12 @@ impl Config {
             [&url],
         )
         .expect("BAD QUERY: total skill issue from devs");
+    }
+    pub fn remove_origin(&mut self) {
+        self.github_repo_url = None;
+        let conn = Connection::open(&self.doter_file_path).unwrap();
+        conn.execute("delete from variables where name = 'github_repo_url'", [])
+            .expect("BAD QUERY: total skill issue from devs");
     }
 
     pub fn load_vars(&mut self, conn: &Connection) {
@@ -62,21 +86,24 @@ impl Config {
                 "github_repo_url" => {
                     self.github_repo_url = Some(value);
                 }
+                "has_initialised" => {
+                    self.has_initialised = true;
+                }
                 _ => {}
             }
         }
     }
 
     pub fn detect_or_create_dir(&self) {
-        match read_dir(&self.doter_saves_dir_path) {
+        match read_dir(&self.doter_local_dir_path) {
             Ok(_) => {}
             Err(e) => {
                 if e.kind() == ErrorKind::NotFound {
                     if let Err(e) = create_dir_all(&self.doter_dir_path) {
                         eprintln!("Error creating {}: {}", self.doter_dir_path, e);
                     }
-                    if let Err(e) = create_dir_all(&self.doter_saves_dir_path) {
-                        eprintln!("Error creating {}: {}", self.doter_saves_dir_path, e);
+                    if let Err(e) = create_dir_all(&self.doter_local_dir_path) {
+                        eprintln!("Error creating {}: {}", self.doter_local_dir_path, e);
                     }
                 }
             }

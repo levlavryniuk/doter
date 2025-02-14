@@ -52,7 +52,7 @@ impl<'a> MarkerManager<'a> {
             .to_string_lossy()
             .into_owned();
 
-        let copy_location = format!("{}/{}", self.cfg.doter_saves_dir_path.clone(), &name);
+        let copy_location = format!("{}/{}", self.cfg.doter_local_dir_path.clone(), &name);
 
         Marker {
             source_location: source_marker.to_string(),
