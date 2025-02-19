@@ -1,5 +1,5 @@
 use std::{
-    default, env,
+    env,
     fs::{create_dir_all, read_dir, File},
     io::ErrorKind,
 };
@@ -24,6 +24,7 @@ impl Config {
 
         let doter_local_path = format!("{}/{}", doter_dir_path, "local");
         let doter_remote_path = format!("{}/{}", doter_dir_path, "remote");
+
         let cfg = Self {
             doter_dir_path,
             doter_file_path,
@@ -32,6 +33,7 @@ impl Config {
             doter_remote_dir_path: doter_remote_path,
             github_repo_url: None,
         };
+
         cfg.detect_or_create_dir();
         let _ = File::create_new(&cfg.doter_file_path);
 
@@ -104,6 +106,9 @@ impl Config {
                     }
                     if let Err(e) = create_dir_all(&self.doter_local_dir_path) {
                         eprintln!("Error creating {}: {}", self.doter_local_dir_path, e);
+                    }
+                    if let Err(e) = create_dir_all(&self.doter_remote_dir_path) {
+                        eprintln!("Error creating {}: {}", self.doter_remote_dir_path, e);
                     }
                 }
             }

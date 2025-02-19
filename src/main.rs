@@ -2,6 +2,8 @@
 
 // 1. Auto detect .config/doter/index.toml or create it
 // 2. Add entries using clap
+// add backup folders.
+// make local and remote dir
 
 use rusqlite::Connection;
 
